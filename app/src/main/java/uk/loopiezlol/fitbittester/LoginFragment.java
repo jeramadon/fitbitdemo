@@ -61,7 +61,8 @@ public class LoginFragment extends Fragment {
                 .setShowTitle(true)
                 .build();
 
-        haveToken = sharedPreferences.getBoolean(QuickPreferences.HAVE_AUTHORIZATION,false);
+//        haveToken = sharedPreferences.getBoolean(QuickPreferences.HAVE_AUTHORIZATION,false);
+        haveToken = false;
 
         logInButton.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -69,8 +70,9 @@ public class LoginFragment extends Fragment {
                 if(!haveToken) {
                     String url = "https://www.fitbit.com/oauth2/authorize?" +
                             "response_type=token" +
-                            "&client_id=22B3JD" +
-                            "&expires_in=2592000" +
+//                            "&client_id=227L2T" +
+                            "&client_id=227KVC" +
+                            "&expires_in=60" +
                             "&scope=activity%20nutrition%20heartrate%20location%20nutrition%20profile%20settings%20sleep%20social%20weight" +
                             "&redirect_uri=fitbittester://logincallback" +
                             "&prompt=login";

@@ -11,6 +11,7 @@ import android.util.Log;
 public class AccessTokenReceiver extends AppCompatActivity {
 
     String string;
+    public final String TAG = AccessTokenReceiver.this.getClass().getSimpleName();
 
 
     @Override
@@ -26,10 +27,10 @@ public class AccessTokenReceiver extends AppCompatActivity {
         String userId = string.substring(string.indexOf("&user_id")+9, string.indexOf("&token_type"));
         String tokenType = string.substring(string.indexOf("&token_type")+12,string.indexOf("&expires_in"));
 
-        Log.i("TAG", string);
-        Log.i("TAG", accessToken);
-        Log.i("TAG", userId);
-        Log.i("TAG", tokenType);
+        Log.i(TAG, string);
+        Log.i(TAG, accessToken);
+        Log.i(TAG, userId);
+        Log.i(TAG, tokenType);
 
         SharedPreferences sharedPreferences =
                 PreferenceManager.getDefaultSharedPreferences(this);
@@ -40,6 +41,6 @@ public class AccessTokenReceiver extends AppCompatActivity {
         sharedPreferences.edit().putString(QuickPreferences.FULL_AUTHORIZATION,tokenType+" "+accessToken).apply();
 
         Intent intent = new Intent(AccessTokenReceiver.this, MainActivity.class);
-        startActivity(intent);
+        startActivityForResult(intent, 0);
     }
 }

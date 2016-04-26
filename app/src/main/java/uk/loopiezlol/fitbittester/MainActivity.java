@@ -2,7 +2,6 @@ package uk.loopiezlol.fitbittester;
 
 import android.app.Fragment;
 import android.app.FragmentTransaction;
-import android.content.Context;
 import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.os.Bundle;
@@ -26,7 +25,11 @@ import retrofit.GsonConverterFactory;
 import retrofit.Response;
 import retrofit.Retrofit;
 import uk.loopiezlol.fitbittester.models.Alarms;
+import uk.loopiezlol.fitbittester.models.DataSet;
 import uk.loopiezlol.fitbittester.models.Device;
+import uk.loopiezlol.fitbittester.models.HeartRateInfo;
+import uk.loopiezlol.fitbittester.models.Measurement;
+import uk.loopiezlol.fitbittester.models.StepLogInfo;
 import uk.loopiezlol.fitbittester.models.TrackerAlarm;
 
 public class MainActivity extends AppCompatActivity {
@@ -39,9 +42,6 @@ public class MainActivity extends AppCompatActivity {
     private String trackerId;
     private Alarms myAlarms ;
 
-
-
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -49,96 +49,27 @@ public class MainActivity extends AppCompatActivity {
         Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
 
-
-        sharedPreferences =
-                PreferenceManager.getDefaultSharedPreferences(this);
+        String callingIntentName = "";
+        if (getCallingActivity() != null) {
+            callingIntentName = getCallingActivity().getClassName();
+        }
+        sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this);
         boolean haveToken = sharedPreferences.getBoolean(QuickPreferences.HAVE_AUTHORIZATION, false);
 
-        if (!haveToken) {
+        if (!haveToken || callingIntentName.equals("")) {
             LoginFragment loginFragment = new LoginFragment();
             openFragment(loginFragment);
-
         } else {
             Boolean haveDeviceID = sharedPreferences.getBoolean(QuickPreferences.HAVE_DEVICE_ID, false);
-            String fullAuthToken = sharedPreferences.getString(QuickPreferences.FULL_AUTHORIZATION, null);
-
-
-
+            String token = sharedPreferences.getString(QuickPreferences.FULL_AUTHORIZATION, null);
 
             if (!haveDeviceID) {
-                initRetrofit();
-                apiService.getDevices(fullAuthToken).enqueue(new Callback<List<Device>>() {
-                    @Override
-                    public void onResponse(Response<List<Device>> response, Retrofit retrofit) {
-                        Log.d(TAG, response.message());
-                        for (Device device : response.body()) {
-                            myDevices.add(device);
-
-                        }
-
-                        final MaterialSimpleListAdapter adapter = new MaterialSimpleListAdapter(MainActivity.this);
-
-                        for (Device device : myDevices) {
-                            adapter.add(new MaterialSimpleListItem.Builder(MainActivity.this)
-                                    .content(device.getDeviceVersion())
-                                    .backgroundColor(Color.WHITE)
-                                    .build());
-                        }
-
-
-                        new MaterialDialog.Builder(MainActivity.this)
-                                .title("Choose your Device")
-                                .adapter(adapter, new MaterialDialog.ListCallback() {
-                                    @Override
-                                    public void onSelection(MaterialDialog dialog, View itemView, int which, CharSequence text) {
-                                        sharedPreferences.edit().putBoolean(QuickPreferences.HAVE_DEVICE_ID, true).apply();
-                                        sharedPreferences.edit().putString(QuickPreferences.MY_DEVICE_ID, myDevices.get(which).getId()).apply();
-                                        dialog.dismiss();
-
-                                    }
-                                })
-                                .show();
-
-
-                    }
-
-                    @Override
-                    public void onFailure(Throwable t) {
-                        t.printStackTrace();
-                    }
-                });
-            }
-
-            if(haveDeviceID){
-
-                initRetrofit();
-
-                trackerId = sharedPreferences.getString(QuickPreferences.MY_DEVICE_ID,null);
-                apiService.getAlarms(fullAuthToken,trackerId).enqueue(new Callback<Alarms>() {
-                    @Override
-                    public void onResponse(Response<Alarms> response, Retrofit retrofit) {
-
-                        myAlarms = new Alarms();
-                        myAlarms.setTrackerAlarms(response.body().getTrackerAlarms());
-                        for(TrackerAlarm alarm: myAlarms.getTrackerAlarms()){
-                            Log.d(TAG, alarm.getAlarmId().toString());
-                        }
-                    }
-
-                    @Override
-                    public void onFailure(Throwable t) {
-                        t.printStackTrace();
-
-                    }
-                });
+                getDeviceId(token);
+            } else {
+                startFitBitQueries(token);
             }
         }
-
     }
-
-
-
-
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
@@ -146,7 +77,6 @@ public class MainActivity extends AppCompatActivity {
         getMenuInflater().inflate(R.menu.menu_main, menu);
         return true;
     }
-
 
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
@@ -163,17 +93,16 @@ public class MainActivity extends AppCompatActivity {
         return super.onOptionsItemSelected(item);
     }
 
-    public void initRetrofit() {
+    private void initRetrofit() {
         Retrofit retrofit = new Retrofit.Builder()
                 .baseUrl(BASE_URL)
                 .addConverterFactory(GsonConverterFactory.create())
                         //.client(httpClient)
                 .build();
-        apiService =
-                retrofit.create(FitBitEndpointInterface.class);
+        apiService = retrofit.create(FitBitEndpointInterface.class);
     }
 
-    public void openFragment(Fragment myFragment) {
+    private void openFragment(Fragment myFragment) {
         FragmentTransaction fragmentTransaction = getFragmentManager().beginTransaction();
         fragmentTransaction.setCustomAnimations(
                 R.animator.slide_in_left,
@@ -183,5 +112,111 @@ public class MainActivity extends AppCompatActivity {
         fragmentTransaction.replace(R.id.content_main, myFragment);
         fragmentTransaction.addToBackStack(null);
         fragmentTransaction.commit();
+    }
+
+    private void getDeviceId(final String token) {
+        initRetrofit();
+        apiService.getDevices(token).enqueue(new Callback<List<Device>>() {
+            @Override
+            public void onResponse(Response<List<Device>> response, Retrofit retrofit) {
+                Log.d(TAG, response.message());
+                for (Device device : response.body()) {
+                    myDevices.add(device);
+
+                }
+
+                final MaterialSimpleListAdapter adapter = new MaterialSimpleListAdapter(MainActivity.this);
+
+                for (Device device : myDevices) {
+                    adapter.add(new MaterialSimpleListItem.Builder(MainActivity.this)
+                            .content(device.getDeviceVersion())
+                            .backgroundColor(Color.WHITE)
+                            .build());
+                }
+
+                new MaterialDialog.Builder(MainActivity.this)
+                        .title("Choose your Device")
+                        .adapter(adapter, new MaterialDialog.ListCallback() {
+                            @Override
+                            public void onSelection(MaterialDialog dialog, View itemView, int which, CharSequence text) {
+                                sharedPreferences.edit().putBoolean(QuickPreferences.HAVE_DEVICE_ID, true).apply();
+                                sharedPreferences.edit().putString(QuickPreferences.MY_DEVICE_ID, myDevices.get(which).getId()).apply();
+                                dialog.dismiss();
+                                startFitBitQueries(token);
+                            }
+                        })
+                        .show();
+            }
+
+            @Override
+            public void onFailure(Throwable t) {
+                t.printStackTrace();
+            }
+        });
+    }
+
+    private void startFitBitQueries(String token) {
+        initRetrofit();
+
+        //  getAlarms
+        trackerId = sharedPreferences.getString(QuickPreferences.MY_DEVICE_ID,null);
+        apiService.getAlarms(token,trackerId).enqueue(new Callback<Alarms>() {
+            @Override
+            public void onResponse(Response<Alarms> response, Retrofit retrofit) {
+                Log.d(TAG, response.message());
+                Log.d(TAG, "Alarms:");
+                myAlarms = new Alarms();
+                myAlarms.setTrackerAlarms(response.body().getTrackerAlarms());
+                for(TrackerAlarm alarm: myAlarms.getTrackerAlarms()){
+                    Log.d(TAG, alarm.getAlarmId().toString());
+                }
+            }
+
+            @Override
+            public void onFailure(Throwable t) {
+                t.printStackTrace();
+
+            }
+        });
+
+        //  getStepLogInfo
+        apiService.getStepLogInfo(token).enqueue(new Callback<StepLogInfo>() {
+            @Override
+            public void onResponse(Response<StepLogInfo> response, Retrofit retrofit) {
+                Log.d(TAG, response.message());
+                Log.d(TAG, "Step Log:");
+                DataSet dataSet = response.body().getDataSet();
+                if (dataSet != null) {
+                    for (Measurement measurement : dataSet.getMeasurementList()) {
+                        Log.d(TAG, measurement.toString());
+                    }
+                }
+            }
+
+            @Override
+            public void onFailure(Throwable t) {
+                t.printStackTrace();
+            }
+        });
+
+        //  getHeartRateInfo
+        apiService.getHeartRateInfo(token).enqueue(new Callback<HeartRateInfo>() {
+            @Override
+            public void onResponse(Response<HeartRateInfo> response, Retrofit retrofit) {
+                Log.d(TAG, response.message());
+                Log.d(TAG, "Heart rate measurements:");
+                DataSet dataSet = response.body().getDataSet();
+                if (dataSet != null) {
+                    for (Measurement measurement : dataSet.getMeasurementList()) {
+                        Log.d(TAG, measurement.toString());
+                    }
+                }
+            }
+
+            @Override
+            public void onFailure(Throwable t) {
+                t.printStackTrace();
+            }
+        });
     }
 }
